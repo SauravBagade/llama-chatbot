@@ -1,102 +1,120 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.memory import ConversationBufferMemory
-import torch
-import os
+import uvicorn
 
-#  Initialize FastAPI
+# Import from model.py
+from model import generate_response, create_vector_db
 
-app = FastAPI()
 
-#  Load LLaMA Model
-MODEL_NAME = "meta-llama/Llama-4"  # change if needed
-
-print("Loading model...")
-
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    torch_dtype=torch.float16,
-    device_map="auto"
+#  Initialize FastAPI App
+app = FastAPI(
+    title="LLaMA Chatbot API",
+    description="FastAPI backend for LLaMA chatbot with RAG",
+    version="1.0.0"
 )
 
-print("Model loaded successfully!")
+# -------------------------------
+#  Enable CORS (Frontend Access)
+# -------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 🧠 Memory (Chat History)
-memory = ConversationBufferMemory()
-
-# 🔍 Embeddings + Vector DB
-embedding_model = HuggingFaceEmbeddings()
-vector_db = None
-
+# -------------------------------
 #  Request Schema
-
+# -------------------------------
 class ChatRequest(BaseModel):
     query: str
-  
-#  Chat Function
 
-def generate_response(prompt):
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=200,
-        temperature=0.7,
-        do_sample=True
-    )
-
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-#  Upload Documents (RAG)
-@app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    global vector_db
-
-    content = await file.read()
-    text = content.decode("utf-8")
-
-    # Create vector DB
-    vector_db = FAISS.from_texts([text], embedding_model)
-
-    return {"message": "File uploaded and indexed successfully"}
-
-#  Chat Endpoint
-@app.post("/chat")
-def chat(request: ChatRequest):
-    global vector_db
-
-    user_query = request.query
-
-    # Retrieve context (RAG)
-    context = ""
-    if vector_db:
-        docs = vector_db.similarity_search(user_query, k=2)
-        context = "\n".join([doc.page_content for doc in docs])
-
-    # Combine prompt
-    full_prompt = f"""
-    Context:
-    {context}
-
-    User: {user_query}
-    Assistant:
-    """
-
-    response = generate_response(full_prompt)
-
-    # Save memory
-    memory.save_context({"input": user_query}, {"output": response})
-
-    return {
-        "query": user_query,
-        "response": response
-    }
+# -------------------------------
 #  Health Check
+# -------------------------------
 @app.get("/")
 def root():
-    return {"message": "LLaMA Chatbot API is running 🚀"}
+    return {
+        "status": "success",
+        "message": "🚀 LLaMA Chatbot API is running"
+    }
+
+# -------------------------------
+#  Chat Endpoint
+# -------------------------------
+@app.post("/chat")
+def chat(request: ChatRequest):
+    try:
+        user_query = request.query.strip()
+
+        if not user_query:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+        response = generate_response(user_query)
+
+        return {
+            "query": user_query,
+            "response": response
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+#  Upload File (RAG)
+# -------------------------------
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        if not file.filename.endswith(".txt"):
+            raise HTTPException(
+                status_code=400,
+                detail="Only .txt files are supported"
+            )
+
+        content = await file.read()
+        text = content.decode("utf-8")
+
+        if not text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="File is empty"
+            )
+
+        # Create vector DB
+        create_vector_db([text])
+
+        return {
+            "status": "success",
+            "message": f"File '{file.filename}' uploaded & indexed"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+#  Optional: Clear Vector DB
+# -------------------------------
+@app.post("/reset")
+def reset():
+    try:
+        create_vector_db([])  # reset
+        return {"message": "Vector DB reset successful"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+#  Run App (Local Dev)
+# -------------------------------
+if __name__ == "__main__":
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
