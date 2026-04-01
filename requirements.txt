@@ -1,0 +1,28 @@
+#  Backend Framework
+fastapi
+uvicorn
+
+#  LLM & Transformers
+transformers
+torch
+accelerate
+sentencepiece
+
+#  LangChain (RAG + Memory)
+langchain
+langchain-community
+
+#  Embeddings + Vector DB
+faiss-cpu
+sentence-transformers
+
+#  File Handling
+python-multipart
+
+#  Utilities
+pydantic
+numpy
+scikit-learn
+
+#  Optional (HuggingFace Auth)
+huggingface-hub
