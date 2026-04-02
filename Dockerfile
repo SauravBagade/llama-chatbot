@@ -1,4 +1,3 @@
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]#  Base Image
 FROM python:3.10-slim
 
 #  Environment Settings
@@ -23,7 +22,7 @@ RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 #  Copy Project Files
-COPY . .
+COPY backend ./backend
 
 #  Expose Port
 EXPOSE 8000
