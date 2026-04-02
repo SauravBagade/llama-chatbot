@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import uvicorn
 
 # Import from model.py
-from model import generate_response, create_vector_db
+from backend.model import generate_response, create_vector_db
 
 
 #  Initialize FastAPI App
