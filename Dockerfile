@@ -1,4 +1,4 @@
-#  Base Image
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]#  Base Image
 FROM python:3.10-slim
 
 #  Environment Settings
@@ -28,5 +28,5 @@ COPY . .
 #  Expose Port
 EXPOSE 8000
 
-#  Run FastAPI App
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+#  Run FastAPI Ap
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
